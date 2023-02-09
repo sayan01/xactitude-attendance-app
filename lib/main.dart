@@ -4,7 +4,17 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 
-void main() => runApp(const MaterialApp(home: MyHome()));
+// firebase
+
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
+Future<void> main() async {
+  runApp(const MaterialApp(home: MyHome()));
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+}
 
 class MyHome extends StatelessWidget {
   const MyHome({Key? key}) : super(key: key);
