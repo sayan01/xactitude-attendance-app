@@ -39,6 +39,10 @@ dependencies:
   qr_code_scanner: ^1.0.1
   flutterfire_cli: ^0.2.7
   firebase_core: ^2.5.0
+  csv: ^5.0.1
+  path_provider: ^2.0.12
+  share: ^2.0.4
+  prompt_dialog: ^1.0.9
 
 dev_dependencies:
   flutter_test:

@@ -2,12 +2,15 @@ import 'dart:developer';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:prompt_dialog/prompt_dialog.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 
 // firebase
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:share/share.dart';
 import 'firebase_options.dart';
+import 'helper.dart';
 
 Future<void> main() async {
   runApp(const MaterialApp(home: MyHome()));
@@ -59,13 +62,36 @@ class QRViewExample extends StatefulWidget {
   State<StatefulWidget> createState() => _QRViewExampleState();
 }
 
+class Attendance {
+  late String id;
+  late DateTime time;
+  Attendance(this.id, this.time);
+}
+
 class _QRViewExampleState extends State<QRViewExample> {
   String? result;
   String message = "Start scanning to take attendance";
-  late List<String> resultArr = <String>[];
+  late List<Attendance> resultArr = <Attendance>[];
   late QRViewController controller;
+  static List<String> events = <String>[
+    'Codefi',
+    'Websea',
+    'Glitch',
+    'Electrohertz',
+    'Graphosnark',
+    'IT Manager',
+    'Fifa 22',
+    'Valorant',
+    'Keystrokes',
+    'Viktoriin',
+    'Ideathon',
+    'Mathletes',
+    'Food',
+  ];
+  String selectedEvent = events.first;
   Color? scanStatus;
   bool cameraPaused = false;
+  bool saved = false;
   final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
 
   // In order to get hot reload to work we need to pause the camera if the platform
@@ -95,23 +121,45 @@ class _QRViewExampleState extends State<QRViewExample> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: <Widget>[
-        ElevatedButton(
-          child: Text('${cameraPaused ? "Resume" : "Pause"} Camera'),
-          onPressed: () async {
-            await (cameraPaused
-                ? controller.resumeCamera()
-                : controller.pauseCamera());
-            setState(() {
-              cameraPaused = !cameraPaused;
-            });
-          },
-        ),
         // MESSAGE GRAY
         Expanded(
           flex: 1,
-          child: Text(
-            message,
-            style: const TextStyle(fontSize: 32, color: Colors.grey),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  ElevatedButton(
+                    child: Text('${cameraPaused ? "Resume" : "Pause"} Camera'),
+                    onPressed: () async {
+                      await (cameraPaused
+                          ? controller.resumeCamera()
+                          : controller.pauseCamera());
+                      setState(() {
+                        cameraPaused = !cameraPaused;
+                      });
+                    },
+                  ),
+                  const Text('Event: '),
+                  DropdownButton(
+                    value: selectedEvent,
+                    items: events
+                        .map((value) =>
+                            DropdownMenuItem(value: value, child: Text(value)))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedEvent = value!;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              Text(
+                message,
+                style: const TextStyle(fontSize: 24, color: Colors.grey),
+              ),
+            ],
           ),
         ),
         // CODE LIST
@@ -122,11 +170,20 @@ class _QRViewExampleState extends State<QRViewExample> {
               itemBuilder: (context, index) => Row(
                 children: [
                   Expanded(
-                    flex: 10,
+                    flex: 5,
                     child: Center(
                       child: Text(
-                        resultArr[index],
-                        style: const TextStyle(fontSize: 64),
+                        resultArr[index].id,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 1,
+                    child: Center(
+                      child: Text(
+                        timeFormat(resultArr[index].time),
+                        style: const TextStyle(fontSize: 16),
                       ),
                     ),
                   ),
@@ -136,7 +193,7 @@ class _QRViewExampleState extends State<QRViewExample> {
                       icon: const Icon(Icons.delete),
                       onPressed: () {
                         setState(() {
-                          message = "${resultArr[index]} Deleted";
+                          message = "${resultArr[index].id} Deleted";
                           scanStatus = Colors.red;
                           resultArr.removeAt(index);
                         });
@@ -151,17 +208,51 @@ class _QRViewExampleState extends State<QRViewExample> {
           ),
         ),
         Expanded(
-          flex: 1,
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: const Text(
-              "END",
-              style: TextStyle(fontSize: 32),
-            ),
-          ),
-        )
+            flex: 1,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                ElevatedButton(
+                  child: const Text(
+                    "SAVE & SHARE",
+                    style: TextStyle(fontSize: 32),
+                  ),
+                  onPressed: () async {
+                    if (resultArr.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text(
+                              'Cant Save Empty List. Take Attendance First')));
+                      return;
+                    }
+                    String event =
+                        selectedEvent.replaceAll(' ', '').toLowerCase();
+                    String path = await saveCSV(resultArr, event);
+                    if (path != "") {
+                      Share.shareFiles(
+                        [path],
+                        subject: 'csv-$event-${DateTime.now()}.csv',
+                        text: 'csv-$event-${DateTime.now()}.csv',
+                      );
+                      saved = true;
+                    }
+                  },
+                ),
+                ElevatedButton(
+                  child: const Text(
+                    "END",
+                    style: TextStyle(fontSize: 32),
+                  ),
+                  onPressed: () {
+                    if (saved) {
+                      Navigator.of(context).pop();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Save the file first!')));
+                    }
+                  },
+                )
+              ],
+            ))
       ],
     );
   }
@@ -180,8 +271,8 @@ class _QRViewExampleState extends State<QRViewExample> {
       overlay: QrScannerOverlayShape(
           borderColor: scanStatus ?? Colors.red,
           borderRadius: 10,
-          borderLength: 50,
-          borderWidth: 30,
+          borderLength: 30,
+          borderWidth: 20,
           cutOutSize: scanArea),
       onPermissionSet: (ctrl, p) => _onPermissionSet(context, ctrl, p),
     );
@@ -193,24 +284,31 @@ class _QRViewExampleState extends State<QRViewExample> {
     });
     controller.scannedDataStream.listen((scanData) {
       if (scanData.code != result) {
-        setState(() {
-          result = scanData.code;
-          if (!resultArr.contains(result)) {
-            resultArr.add(result!);
-            scanStatus = Colors.green;
-            message = "Attendance Taken";
-            Navigator.of(context).push(
-              PageRouteBuilder(
-                opaque: false,
-                pageBuilder: (BuildContext context, _, __) =>
-                    const ScanOverlay(),
-              ),
-            );
-          } else {
-            scanStatus = Colors.orange;
-            message = "$result already exists";
-          }
-        });
+        if (validQR(scanData.code!)) {
+          setState(() {
+            result = scanData.code;
+            if (!resultArr.map((e) => e.id).contains(result)) {
+              resultArr.add(Attendance(result!, DateTime.now()));
+              scanStatus = Colors.green;
+              message = "Attendance Taken";
+              Navigator.of(context).push(
+                PageRouteBuilder(
+                  opaque: false,
+                  pageBuilder: (BuildContext context, _, __) =>
+                      const ScanOverlay(),
+                ),
+              );
+            } else {
+              scanStatus = Colors.orange;
+              message = "$result already exists";
+            }
+          });
+        } else {
+          setState(() {
+            message = "QR Code is not of a XACT participant";
+            scanStatus = Colors.red;
+          });
+        }
       }
     });
   }
