@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:prompt_dialog/prompt_dialog.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 
 // firebase
@@ -190,12 +191,30 @@ class _QRViewExampleState extends State<QRViewExample> {
                     flex: 1,
                     child: IconButton(
                       icon: const Icon(Icons.delete),
-                      onPressed: () {
-                        setState(() {
-                          message = "${resultArr[index].id} Deleted";
-                          scanStatus = Colors.red;
-                          resultArr.removeAt(index);
-                        });
+                      onPressed: () async {
+                        String? answer = await prompt(
+                          context,
+                          title: Text(
+                              'ARE YOU SURE YOU WANT TO DELETE ATTENDANCE OF $result?'),
+                          textOK: Text('I AM EXTREMELY SURE TO DELETE $result'),
+                          textCancel: Text('NO DO NOT DELETE $result'),
+                          initialValue: "no",
+                          hintText: "type yes to delete",
+                          textCapitalization: TextCapitalization.none,
+                        );
+                        if (answer != null && answer.toLowerCase() == 'yes') {
+                          setState(() {
+                            message = "${resultArr[index].id} Deleted";
+                            scanStatus = Colors.red;
+                            resultArr.removeAt(index);
+                          });
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('DID NOT DELETE $result'),
+                            ),
+                          );
+                        }
                       },
                     ),
                   ),
